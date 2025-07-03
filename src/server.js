@@ -6,6 +6,10 @@ import path    from "path";
 import { fileURLToPath } from "url";
 import http    from "http";
 
+import "./config/passport.js";
+import passport from "passport";
+
+
 /* ---- Firebase Admin (unchanged) ---- */
 import admin from "firebase-admin";
 import { createRequire } from "module";
@@ -45,6 +49,7 @@ app.use("/api/matches",  matchRoutes);
 app.use("/api/admin",    adminRoutes);
 app.use("/api/chat",     chatRoutes);      // chat history
 app.use("/api/schedule", scheduleRoutes);
+app.use(passport.initialize());
 
 /* ---- Root ---- */
 app.get("/", (_, res) => res.send("ArtXchange API running"));
