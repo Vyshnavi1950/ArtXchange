@@ -1,38 +1,33 @@
 // src/config/passport.js
 import passport from "passport";
-import GoogleStrategy from "passport-google-oauth20";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import User from "../models/User.js";
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+import dotenv from "dotenv";
+dotenv.config();  // ⬅️ Make sure this line is included
 
 passport.use(
   new GoogleStrategy(
     {
-      clientID: GOOGLE_CLIENT_ID,
-      clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: "/auth/google/callback",
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const email = profile.emails[0].value;
-        const photo = profile.photos?.[0]?.value;
+        // Find or create user logic here
+        const existingUser = await User.findOne({ googleId: profile.id });
+        if (existingUser) return done(null, existingUser);
 
-        let user = await User.findOne({ email });
+        const newUser = await User.create({
+          googleId: profile.id,
+          name: profile.displayName,
+          email: profile.emails?.[0]?.value,
+          avatar: profile.photos?.[0]?.value,
+        });
 
-        if (!user) {
-          user = new User({
-            name: profile.displayName,
-            email,
-            avatar: photo,
-            password: "", // social login
-          });
-          await user.save();
-        }
-
-        done(null, user); // this becomes req.user
+        return done(null, newUser);
       } catch (err) {
-        done(err, null);
+        return done(err, false);
       }
     }
   )

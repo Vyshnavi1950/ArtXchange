@@ -1,129 +1,154 @@
 /*  src/controllers/authController.js  */
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import User from "../models/User.js"; // ← make sure this path is correct
+import admin from "firebase-admin";          // Firebase Admin initialised in server.js
+import User from "../models/User.js";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://your-frontend.vercel.app";
+/* ─── env & helpers ─── */
+const { JWT_SECRET, FRONTEND_URL = "http://localhost:5173", NODE_ENV } = process.env;
+if (!JWT_SECRET) throw new Error("JWT_SECRET env variable is missing");
 
-/* ─────────────────────────  REGISTER  ───────────────────────── */
+const IS_PROD = NODE_ENV === "production";
+
+const signToken = (id) =>
+  jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: "7d", algorithm: "HS256" });
+
+// backend/src/controllers/authController.js
+
+const cookieOpts = {
+  httpOnly: true,
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: "/",
+};
+
+
+
+/* ─── Register ─── */
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email = "", password } = req.body;
+    if (!name || !email.trim() || !password)
+      return res.status(400).json({ msg: "All fields are required" });
 
-    if (!name || !email || !password)
-      return res.status(400).json({ message: "All fields are required" });
+    const normEmail = email.trim().toLowerCase();
+    if (await User.findOne({ email: normEmail }))
+      return res.status(409).json({ msg: "User already exists" });
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(409).json({ message: "User already exists" });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      avatar: req.file?.path || "", // if you're using avatar upload
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      name: name.trim(),
+      email: normEmail,
+      password: hashed,
+      avatar: req.file?.path ?? "",
     });
 
-    await user.save();
-    return res.status(201).json({ message: "User registered successfully" });
+    res.status(201).json({ msg: "User registered", user: { id: user._id, name, email: normEmail } });
   } catch (err) {
     console.error("Register error:", err);
-    return res.status(500).json({ message: "Server error during registration" });
+    res.status(500).json({ msg: "Server error during registration" });
   }
 };
 
-/* ───────────────────────────  LOGIN  ────────────────────────── */
+/* ─── Login (email + password) ─── */
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email = "", password } = req.body;
+    const normEmail = email.trim().toLowerCase();
 
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
+    const user = await User.findOne({ email: normEmail });
+    if (!user) return res.status(404).json({ msg: "Email not registered" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Invalid credentials" });
+    if (!user.password)
+      return res
+        .status(400)
+        .json({ msg: "Account uses social login. Use Google sign‑in." });
 
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.status(401).json({ msg: "Incorrect password" });
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
-    });
-
-    return res.status(200).json({ message: "Login successful", user });
+    res.cookie("token", signToken(user._id), cookieOpts);
+    res.json({ msg: "Login successful", user: { id: user._id, name: user.name, email: normEmail } });
   } catch (err) {
     console.error("Login error:", err);
-    return res.status(500).json({ message: "Server error during login" });
+    res.status(500).json({ msg: "Server error during login" });
   }
 };
 
-/* ────────────────────────  FORGOT PASSWORD  ─────────────────── */
-export const forgotPassword = async (req, res) => {
+/* ─── Logout ─── */
+export const logoutUser = (_req, res) => {
   try {
-    const { email } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "Email not registered" });
-
-    // You can implement your own token + email logic here
-    return res.status(200).json({ message: "Reset link sent (mock)" });
-  } catch (err) {
-    console.error("Forgot-password error:", err);
-    return res.status(500).json({ message: "Server error during password reset" });
-  }
-};
-
-/* ───────────────────────────  LOGOUT  ───────────────────────── */
-export const logoutUser = async (req, res) => {
-  try {
-    res.clearCookie("token", {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
-    });
-
-    return res.status(200).json({ message: "Logged out successfully" });
+    res.clearCookie("token", { ...cookieOpts, maxAge: 0 });
+    res.json({ msg: "Logged out" });
   } catch (err) {
     console.error("Logout error:", err);
-    return res.status(500).json({ message: "Server error during logout" });
+    res.status(500).json({ msg: "Server error during logout" });
   }
 };
 
-/* ───────────────  GOOGLE SIGN-IN CALLBACK HANDLER  ───────────── */
+/* ─── Forgot password (stub) ─── */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email = "" } = req.body;
+    const normEmail = email.trim().toLowerCase();
+
+    if (!(await User.findOne({ email: normEmail })))
+      return res.status(404).json({ msg: "Email not registered" });
+
+    // TODO: real e‑mail reset flow
+    res.json({ msg: "Password‑reset link sent (mock)" });
+  } catch (err) {
+    console.error("Forgot‑password error:", err);
+    res.status(500).json({ msg: "Server error during password reset" });
+  }
+};
+
+/* ─── Google OAuth callback (Passport) ─── */
 export const googleCallback = async (req, res) => {
   try {
-    const googleUser = req.user; // populated by passport
-
-    let user = await User.findOne({ email: googleUser.email });
+    const g = req.user; // populated by passport‑google
+    let user = await User.findOne({ email: g.email });
 
     if (!user) {
-      // create new user with data from Google
-      user = new User({
-        name: googleUser.displayName,
-        email: googleUser.email,
-        avatar: googleUser.photo, // if available from strategy
-        password: "", // empty password for social login
+      user = await User.create({
+        name: g.displayName,
+        email: g.email,
+        avatar: g.photo,
+        password: "", // empty ⇒ social login
       });
-      await user.save();
     }
 
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
-    });
-
-    return res.redirect(FRONTEND_URL); // redirect to frontend home page
+    res.cookie("token", signToken(user._id), cookieOpts);
+    res.redirect(FRONTEND_URL);
   } catch (err) {
     console.error("Google callback error:", err);
-    return res.status(500).send("Google authentication failed");
+    res.status(500).send("Google authentication failed");
+  }
+};
+
+/* ─── Firebase ID‑token exchange ─── */
+export const firebaseAuth = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ msg: "No idToken provided" });
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
+    let user = await User.findOne({ email: decoded.email });
+    if (!user) {
+      user = await User.create({
+        name: decoded.name || decoded.email.split("@")[0],
+        email: decoded.email,
+        avatar: decoded.picture || "",
+        password: "", // social login
+      });
+    }
+
+    res.cookie("token", signToken(user._id), cookieOpts);
+    res.json({ msg: "Firebase login successful" });
+  } catch (err) {
+    console.error("Firebase auth error:", err);
+    res.status(401).json({ msg: "Invalid Firebase token" });
   }
 };

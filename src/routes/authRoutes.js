@@ -1,42 +1,46 @@
-/*  src/routes/authRoutes.js  */
+// src/routes/authRoutes.js
 import { Router } from "express";
-import passport from "passport";            // ← add Passport for Google OAuth
+import passport from "passport";
+
 import { upload } from "../middleware/upload.js";
+import { protect } from "../middleware/authMiddleware.js";   // ⬅️ named import!
 
 import {
   registerUser,
   loginUser,
   forgotPassword,
   logoutUser,
-  googleCallback,                           // success handler for Google auth
+  googleCallback,
 } from "../controllers/authController.js";
 
 const router = Router();
 
-/* -------- public auth endpoints -------- */
+/* ---------- Public ---------- */
 router.post("/register", upload.single("avatar"), registerUser);
 router.post("/login",    loginUser);
 router.post("/forgot",   forgotPassword);
 
-/* -------- logout (works for button OR link) -------- */
-router.post("/logout", logoutUser);          // preferred: fetch/axios POST
-router.get("/logout",  logoutUser);          // optional: plain <a href="/logout">
-
-/* -------- Google OAuth endpoints -------- */
-// 1) Kick off Google sign‑in
+/* ---------- Google OAuth ---------- */
 router.get(
   "/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
-// 2) Google redirects back here
 router.get(
   "/google/callback",
   passport.authenticate("google", {
-    session: false,                          // using JWT cookies instead of sessions
+    session: false,
     failureRedirect: "/login",
   }),
-  googleCallback                             // issues token + redirects to frontend
+  googleCallback
 );
+
+/* ---------- Auth‑protected probe ---------- */
+router.get("/me", protect, (req, res) => {
+  res.json(req.user );
+});
+
+/* ---------- Logout (POST or GET) ---------- */
+router.route("/logout").post(logoutUser).get(logoutUser);
 
 export default router;
