@@ -6,81 +6,92 @@ import http from "http";
 import cookieParser from "cookie-parser";
 import { fileURLToPath } from "url";
 import fs from "fs";
-
 import passport from "passport";
-import "./config/passport.js";
-
-/* ─────────── Firebase Admin Setup ─────────── */
 import admin from "firebase-admin";
 
-let serviceAccount;
-
-if (process.env.NODE_ENV === "production") {
-  serviceAccount = {
-    type: "service_account",
-    project_id: "artxchange-ec97e",
-    private_key_id: "2080e9d2159abe9d3edffc29b64a532a59f429e1",
-    private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCQkyKBbbdriIH3\nR5aT9UpFgK1S6qPXNCagZEqha6G9l4TiJcSz3Q5vZENiuH8QvVi/FHwpfTKCYmgp\nc4j6YmRkWT3UUObLKmIvvpYw7xUlD2T+O1Woak2pCAvQOtTVi0X54SoIiZnV+Ec8\n8N4Ji3WS+zJphbt2Kt02rfoMmmPs8An6wpL7ponG8ng54TSuLzXNV+T8FYZ9fCAY\nlWeJRJMVUoqsbtVmVCPSxObB28Pv23P6tlOaiVXXDodSoAPMPbYKsA1fYARumx5l\ngcar793UadiTj6Gp7+lpIRs7uuTdMUmZB+rBoZYau/pF8kXRGilH7z3o/RbJCTl3\n6QjS2mfRAgMBAAECggEADBdSFnL/mQ20mOKy1DL6gC+Pz1RyWWgyJs3cc/2VbE7E\nvUkdV1GQiH5hKFt3vQWo62oiLDIdTExAm97ewNoDvWS9SAlwE+O6jHWrB/Km2Q+d\niamas1gYoJ9cpZCWBjn8ozZSlp4zcHKwOoeGelPghGdfwvV9RRe2ooEQXYd3/fPB\nIHRFW7W7XSnPF/mrcRxL1cWheagRc9tSwbLSdm1Fi1s5RNCzoy1zLNUJBGDq9+5K\nnJAulMNjOCJd92BU5JTGa3Cu7a/39PrYKNwsEj9srmjGPx6GKUYLO6sCeCeauLo+\nWBF1WaUYXNF/F3XhjhK/2/8dS26LQk+hTWu5yBUf8QKBgQDGICWtJWhUWoUFC8cZ\nMAUuYdvOn5qkYG62XXRwNLoPBhLgT2N4jREDX+nbH0J/RqXqjjYlaCQs5LGyCKIk\nY4ZcK8JLTsjpwwQ4LQdJsS1rEgdY72TE9RXo651DFBRXvyFM4KARbIfv7+RAwPuG\nrioBujt42hedgJbVTWbPGrds/QKBgQC6znNWZrPz/gEr6mNe8p3RVIeouhoOEW7Q\nlA4K15DqgUVVoq+EFomXQfGco/TMHiacrH+o8eT/TnzejIjz9tBW0ydghhALcj4m\nXOTvq/0dhvPRzbNTibtKuIqEWu5kX6PzdTQr87IZiYYh0VSsXMsqdhHe0JjXozQO\nRRVjn86IZQKBgQCC+3fNG4D424s7hcjP1xZlzp5h4NR8vaAUAn7bO5CSJCLQlsud\nRC2uPHe/vM/akxtXkUMswcfAwkTT/a8sPXvzbZ6a6PAc0yfz95js2Cy9r4KaAlJt\nf9ZHUZV7Zkf4psxeJdbNDiJktwUA5lSjensc/0EYKZ8ZKo0NYYmJfBEuBQKBgHEv\nuAio7+4tgE44lX8pJ+B3BD+Ci1jszSUKIDwHgyHjs7wAd7Jj6XhBl4CegyvONP0H\nM86MyoC68MPziOOxL2j8RcahVEVrMicScBCcOCBU7ZS4uygpstbCXAN4CSu+G1vf\nLv5WiRoaDrCc4l4RV3Rh19AWuhUmKNtglmYnpP9VAoGBAKz9iwRjKeSeN8kdhqjE\nVGhhLpoS7LMyds0mJTaW9K36NwcG9G8sJI8pRnXMQfcxUmjVgiPYMYpHKRcJ7Ywa\nyFNxcdVscN+KLA7guEdGhSHx9Iih8cv8HZQMN1iyZijWDe/aj/f2RxBa6uk5RTp4\nxVogb7K38CBw2DVZxDGnbD5Q\n-----END PRIVATE KEY-----\n",
-    client_email: "firebase-adminsdk-fbsvc@artxchange-ec97e.iam.gserviceaccount.com",
-    client_id: "105653169923015638419",
-    auth_uri: "https://accounts.google.com/o/oauth2/auth",
-    token_uri: "https://oauth2.googleapis.com/token",
-    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-    client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40artxchange-ec97e.iam.gserviceaccount.com",
-    universe_domain: "googleapis.com",
-  };
-} else {
-  serviceAccount = JSON.parse(fs.readFileSync("serviceAccountKey.json", "utf8"));
-}
-
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-
-/* ──────────────────── Basic Setup ──────────────────── */
-dotenv.config();
+import "./config/passport.js";
 import connectDB from "./config/db.js";
-connectDB();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const app = express();
-const CLIENT_ORIGINS = ["http://localhost:5173", "https://artxchange.vercel.app"];
-
-app.use(
-  cors({
-    origin: (origin, cb) =>
-      !origin || CLIENT_ORIGINS.includes(origin)
-        ? cb(null, true)
-        : cb(new Error("Not allowed by CORS")),
-    credentials: true,
-  })
-);
-
-app.use(express.json());
-app.use(cookieParser());
-app.use(passport.initialize());
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-
-/* ─────────── Routes ─────────── */
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import scheduleRoutes from "./routes/scheduleRoutes.js";
+import initSocket from "./socket.js";
 
+/* ──────────────── Load env & database ──────────────── */
+dotenv.config();
+connectDB();
+
+/* ─────────────── Firebase Admin Setup ─────────────── */
+let serviceAccount;
+
+if (process.env.NODE_ENV === "production") {
+  // Keep your private key outside the codebase — store as one env var
+  // e.g. FIREBASE_SERVICE_ACCOUNT={...json...}
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} else {
+  serviceAccount = JSON.parse(fs.readFileSync("serviceAccountKey.json", "utf8"));
+}
+
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+
+/* ──────────────── Path helpers ──────────────── */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/* ───────────────── Express app ───────────────── */
+const app = express();
+
+/* ─────────────────── CORS ────────────────────── */
+const DEFAULT_ORIGINS = [
+  "http://localhost:5173",
+  "https://art-xchange2.vercel.app", // <- new Vercel domain
+];
+
+const CLIENT_ORIGINS = process.env.CLIENT_ORIGINS
+  ? process.env.CLIENT_ORIGINS.split(",").map((o) => o.trim()).concat(DEFAULT_ORIGINS)
+  : DEFAULT_ORIGINS;
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true); // allow curl / Postman
+      const allowed = CLIENT_ORIGINS.some((o) => origin.startsWith(o));
+      return allowed ? cb(null, true) : cb(new Error(`Not allowed by CORS: ${origin}`));
+    },
+    credentials: true,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+// Ensure pre‑flight requests are handled quickly
+app.options("*", cors());
+
+/* ─────────────── global middleware ─────────────── */
+app.use(express.json({ limit: "10mb" })); // increase payload limit if needed
+app.use(cookieParser());
+app.use(passport.initialize());
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+/* ─────────────────── Routes ─────────────────── */
+app.get("/", (_, res) => res.send("ArtXchange API running"));
+
+// primary versioned API
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/schedule", scheduleRoutes);
-app.get("/", (_, res) => res.send("ArtXchange API running"));
 
-/* ─────────── Start Server + Sockets ─────────── */
-import initSocket from "./socket.js";
+// temporary alias so existing frontend calls to /auth/* keep working
+app.use("/auth", authRoutes); // TODO: remove after frontend baseURL updated
+
+/* ─────────────── Start Server + WS ─────────────── */
 const PORT = process.env.PORT || 5000;
 const httpServer = http.createServer(app);
+
 initSocket(httpServer);
 
 httpServer.listen(PORT, () =>
