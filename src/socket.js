@@ -1,74 +1,80 @@
-// backend/src/socket.js
-import { Server } from "socket.io";
-import admin from "firebase-admin";
-import Message from "./models/Message.js";
+/*  backend/src/socket.js  */
+import { Server }  from "socket.io";
+import admin       from "firebase-admin";
+import Message     from "./models/Message.js";
+
+/* Helper → sorted room id like "uidA|uidB" */
+const roomId = (a, b) => [String(a), String(b)].sort().join("|");
 
 export default function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin: "*",  // Ideally restrict to your frontend origin in production
+      origin: "*",                         // ⚠️ tighten in production
       methods: ["GET", "POST"],
     },
   });
 
-  // Firebase token verification for every socket connection
+  /* ───────── Auth middleware ───────── */
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
       if (!token) throw new Error("Token missing");
 
-      // Verify Firebase ID token
-      const decoded = await admin.auth().verifyIdToken(token);
-
-      // Attach decoded token (with uid etc.) to socket
-      socket.user = decoded;
-
-      return next();
+      socket.user = await admin.auth().verifyIdToken(token);
+      next();
     } catch (err) {
       console.error("Socket auth error:", err.message);
-      return next(new Error("Authentication error"));
+      next(new Error("Authentication error"));
     }
   });
 
+  /* ───────── Connection handler ───────── */
   io.on("connection", (socket) => {
-    const userId = socket.user.uid; // Firebase UID from decoded token
-    if (!userId) return socket.disconnect(true);
+    const uid = socket.user.uid;
+    console.log("🔌 Socket connected:", socket.id, "uid:", uid);
 
-    socket.join(userId); // Join personal room for this user
+    /* personal room, so we can emit directly */
+    socket.join(uid);
 
-    // Handle sending a chat message
+    /* ---- chat:send ---- */
     socket.on("chat:send", async ({ to, text }) => {
-      if (!text?.trim()) return;
+      const clean = text?.trim();
+      if (!clean) return;
+
+      const participants = [uid, String(to)].sort();
+      const room         = participants.join("|");
 
       try {
         const msg = await Message.create({
-          from: userId,
-          to,
-          text,
+          participants,
+          room,
+          from: uid,
+          to:   String(to),
+          text: clean,
         });
 
-        // Emit message to recipient and sender rooms
+        /* emit to both users (id rooms) */
+        io.to(uid).emit("chat:new", msg);
         io.to(to).emit("chat:new", msg);
-        io.to(userId).emit("chat:new", msg);
       } catch (err) {
-        console.error("Failed to create/send message:", err);
+        console.error("Message save error:", err.message);
       }
     });
 
-    // Mark messages as seen
+    /* ---- chat:seen (mark partner’s messages as read) ---- */
     socket.on("chat:seen", async ({ partnerId }) => {
       try {
         await Message.updateMany(
-          { from: partnerId, to: userId, seen: false },
-          { seen: true }
+          { from: partnerId, to: uid, seen: false },
+          { $set: { seen: true } }
         );
       } catch (err) {
-        console.error("Failed to update messages as seen:", err);
+        console.error("chat:seen error:", err.message);
       }
     });
 
-    socket.on("disconnect", () => {
-      console.log(`Socket ${socket.id} for user ${userId} disconnected`);
-    });
+    socket.on("disconnect", () =>
+      console.log(`🔌 Socket ${socket.id} (uid ${uid}) disconnected`)
+    );
   });
 }

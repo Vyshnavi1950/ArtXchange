@@ -7,8 +7,8 @@ const userSchema = new mongoose.Schema(
     _id: { type: String },
 
     name:     { type: String, required: true },
-    email:    { type: String, required: true, unique: true },
-    password: { type: String, default: "placeholder", select: false }, // not used
+    email:    { type: String, required: true, unique: true },  // ← the only email index
+    password: { type: String, default: "placeholder", select: false },
     avatar:   { type: String, default: "" },
 
     bio: { type: String, default: "" },
@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema(
 );
 
 /* ---------- Indexes ---------- */
-userSchema.index({ email: 1 }, { unique: true }); // enforce unique email
-userSchema.index({ name: 1 });                    // speed up Explore search
+// email already has a unique index via the field option above
+userSchema.index({ name: 1 }); // for quick lookup by name
 
 export default mongoose.model("User", userSchema);

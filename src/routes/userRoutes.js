@@ -33,12 +33,13 @@ router.get("/explore", exploreUsers);
 router.get("/email/:email", protect, getUserByEmail);
 
 /* ───────────── Follow / Unfollow (protected) ───────────── */
-router.post   ("/:id([0-9a-fA-F]{24})/follow", protect, followUser);
-router.delete ("/:id([0-9a-fA-F]{24})/follow", protect, unfollowUser);
+/* Accept both ObjectId (24‑hex) and Firebase UID strings */
+router.post   ("/:id/follow", protect, followUser);
+router.delete ("/:id/follow", protect, unfollowUser);
 
-/* ───────────── Public profile by ID (ObjectId only) ─────────────
-   ⚠️  This **must stay last** so it doesn’t swallow earlier paths.
+/* ───────────── Public profile by ID (catch‑all) ─────────────
+   ⚠️  Keep last so it doesn’t swallow earlier paths.
 ------------------------------------------------------------------ */
-router.get("/:id([0-9a-fA-F]{24})", getUserById);
+router.get("/:id", getUserById);
 
 export default router;

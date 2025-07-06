@@ -1,24 +1,16 @@
-/* backend/src/controllers/chatController.js */
 import Message from "../models/Message.js";
 
+/* GET /api/chat/:partnerId */
 export const getHistory = async (req, res) => {
-  const { partnerId } = req.params;
-  const skip = Number(req.query.skip) || 0;
-
   try {
-    const msgs = await Message.find({
-      $or: [
-        { from: req.user._id, to: partnerId },
-        { from: partnerId,    to: req.user._id },
-      ],
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(30);
+    const me  = String(req.user._id);
+    const you = String(req.params.partnerId);
+    const room = [me, you].sort().join("|");
 
-    res.json(msgs.reverse());
+    const msgs = await Message.find({ room }).sort({ createdAt: 1 });
+    res.json(msgs);
   } catch (err) {
-    console.error("❌ chat history error:", err);
+    console.error("getHistory error:", err);
     res.status(500).json({ msg: "Failed to load messages" });
   }
 };
