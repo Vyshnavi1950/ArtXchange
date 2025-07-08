@@ -49,6 +49,8 @@ const app = express();
 const defaultOrigins = [
   "http://localhost:5173",
   "https://artxchange2.vercel.app",
+  "https://artxchange1.onrender.com"  
+
 ];
 
 const allowedOrigins = process.env.CLIENT_ORIGINS
