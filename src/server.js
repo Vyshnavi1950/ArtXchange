@@ -49,7 +49,9 @@ const app = express();
 const defaultOrigins = [
   "http://localhost:5173",
   "https://art-xchange2.vercel.app/",
-  "https://artxchange1.onrender.com"  
+  "https://artxchange1.onrender.com",
+  "https://art-xchange2-djqc9alz5-vyshnavis-projects-45c74a4d.vercel.app", 
+
 
 ];
 
